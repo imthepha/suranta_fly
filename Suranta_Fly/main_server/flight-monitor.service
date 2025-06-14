@@ -1,0 +1,15 @@
+[Unit]
+Description=Flight Monitor Service
+After=network.target postgresql.service redis.service
+
+[Service]
+User=flightmonitor
+Group=flightmonitor
+WorkingDirectory=/opt/flight-monitor
+Environment="PATH=/opt/flight-monitor/venv/bin"
+EnvironmentFile=/opt/flight-monitor/.env
+ExecStart=/opt/flight-monitor/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target 

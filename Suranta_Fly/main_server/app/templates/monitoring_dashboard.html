@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Monitor Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8">Flight Monitor Dashboard</h1>
+        
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="text-gray-500 text-sm">Total Tasks (24h)</h3>
+                <p class="text-2xl font-bold" id="total-tasks">-</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="text-gray-500 text-sm">Success Rate</h3>
+                <p class="text-2xl font-bold" id="success-rate">-</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="text-gray-500 text-sm">Fail Rate</h3>
+                <p class="text-2xl font-bold" id="fail-rate">-</p>
+            </div>
+            <div class="bg-white rounded-lg shadow p-4">
+                <h3 class="text-gray-500 text-sm">Retry Rate</h3>
+                <p class="text-2xl font-bold" id="retry-rate">-</p>
+            </div>
+        </div>
+
+        <!-- Active Locks -->
+        <div class="bg-white rounded-lg shadow mb-8">
+            <div class="p-4 border-b">
+                <h2 class="text-xl font-bold">Active Locks</h2>
+            </div>
+            <div class="p-4">
+                <table class="min-w-full" id="locks-table">
+                    <thead>
+                        <tr>
+                            <th class="text-left">Task ID</th>
+                            <th class="text-left">Worker</th>
+                            <th class="text-left">TTL</th>
+                            <th class="text-left">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Locks will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Errors -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="p-4 border-b">
+                <h2 class="text-xl font-bold">Recent Errors</h2>
+            </div>
+            <div class="p-4">
+                <table class="min-w-full" id="errors-table">
+                    <thead>
+                        <tr>
+                            <th class="text-left">Task ID</th>
+                            <th class="text-left">Timestamp</th>
+                            <th class="text-left">Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Errors will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fetch and update stats
+        async function updateStats() {
+            const response = await fetch('/monitoring/stats');
+            const data = await response.json();
+            
+            document.getElementById('total-tasks').textContent = data.total_tasks_24h;
+            document.getElementById('success-rate').textContent = 
+                `${((data.success_count / data.total_tasks_24h) * 100).toFixed(1)}%`;
+            document.getElementById('fail-rate').textContent = 
+                `${((data.fail_count / data.total_tasks_24h) * 100).toFixed(1)}%`;
+            document.getElementById('retry-rate').textContent = 
+                `${data.retry_rate_percent.toFixed(1)}%`;
+        }
+
+        // Fetch and update locks
+        async function updateLocks() {
+            const response = await fetch('/monitoring/locks');
+            const locks = await response.json();
+            
+            const tbody = document.querySelector('#locks-table tbody');
+            tbody.innerHTML = locks.map(lock => `
+                <tr>
+                    <td class="py-2">${lock.task_id}</td>
+                    <td class="py-2">${lock.worker_info.hostname || 'Unknown'}</td>
+                    <td class="py-2">${lock.ttl_seconds}s</td>
+                    <td class="py-2">
+                        <button onclick="releaseLock(${lock.task_id})" 
+                                class="bg-red-500 text-white px-2 py-1 rounded text-sm">
+                            Release
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Release a lock
+        async function releaseLock(taskId) {
+            if (!confirm('Are you sure you want to release this lock?')) return;
+            
+            try {
+                const response = await fetch(`/monitoring/locks/${taskId}/release`, {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    updateLocks();
+                } else {
+                    alert('Failed to release lock');
+                }
+            } catch (error) {
+                console.error('Error releasing lock:', error);
+                alert('Error releasing lock');
+            }
+        }
+
+        // Update data every 5 seconds
+        setInterval(() => {
+            updateStats();
+            updateLocks();
+        }, 5000);
+
+        // Initial load
+        updateStats();
+        updateLocks();
+    </script>
+</body>
+</html> 
